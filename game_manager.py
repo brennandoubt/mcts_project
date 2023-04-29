@@ -34,8 +34,8 @@ class GameManager:
 
 
 def main():
-    p1 = player.RandomPlayer("White")
-    p2 = player.RandomPlayer("Black")
+    p1 = player.DeterministicPlayer("White")
+    p2 = player.DeterministicPlayer("Black")
     gm = GameManager(p1, p2)
     print(gm.play())
 
