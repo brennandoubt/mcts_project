@@ -43,7 +43,7 @@ def main():
     if len(sys.argv) == 2:
         board = chess.Board()
         if sys.argv[1] == "WHITE":
-            p1 = player.MiniMaxPlayer('BLACK', 3)
+            p1 = player.AlphaBetaPlayer('BLACK', 3)
             player_turn = True
         elif sys.argv[1] == "BLACK":
             p1 = player.AlphaBetaPlayer('WHITE', 3)

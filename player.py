@@ -202,7 +202,7 @@ class AlphaBetaPlayer(Player):
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
             check = self._minValue(newBoard, 1, alpha, beta)
-            print(str(check) + ", " + board.san(move))
+            # print(str(check) + ", " + board.san(move))
             if v < check:
                 v = check
                 finalMove = board.san(move)
@@ -232,7 +232,6 @@ class AlphaBetaPlayer(Player):
             return -positionEvaluation(self.other_color, board)
         legalMoves = list(board.legal_moves)
         v = float('inf')
-        min_move = None
         for move in legalMoves:
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
