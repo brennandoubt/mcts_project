@@ -138,10 +138,8 @@ class MiniMaxPlayer(Player):
     def __init__(self, color, depth):
         super(MiniMaxPlayer, self).__init__(color)
         self.depth = depth
-        self.multiply = 1
         if self.color == 'WHITE':
             self.other_color = 'BLACK'
-            #self.multiply = -1
         else:
             self.other_color = 'WHITE'
 
@@ -154,7 +152,6 @@ class MiniMaxPlayer(Player):
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
             check = self._minValue(newBoard, 1)
-            print(str(check) + ", " + board.san(move))
             if v < check:
                 v = check
                 print(v)
@@ -183,6 +180,65 @@ class MiniMaxPlayer(Player):
             check = self._maxValue(newBoard, d + 1)
             if v > check:
                 v = check
+        return v
+
+
+class AlphaBetaPlayer(Player):
+    def __init__(self, color, depth):
+        super(AlphaBetaPlayer, self).__init__(color)
+        self.depth = depth
+        if self.color == 'WHITE':
+            self.other_color = 'BLACK'
+        else:
+            self.other_color = 'WHITE'
+    def get_move(self, board):
+        v, alpha, beta, finalMove = float('-inf'), float('-inf'), float('inf'), None
+        legalMoves = list(board.legal_moves)
+
+        for move in legalMoves:
+            newBoard = copy(board)
+            newBoard.push_san(board.san(move))
+            check = self._minValue(newBoard, 1, alpha, beta)
+            print(str(check) + ", " + board.san(move))
+            if v < check:
+                v = check
+                finalMove = board.san(move)
+            if alpha < v:
+                alpha = v
+        return finalMove
+
+    def _maxValue(self, board, d, a, b):
+        legalMoves = list(board.legal_moves)
+        if d >= self.depth or board.is_game_over():
+            return positionEvaluation(self.color, board)
+        v = float('-inf')
+        for move in legalMoves:
+            newBoard = copy(board)
+            newBoard.push_san(board.san(move))
+            check = self._minValue(newBoard, d + 1, a, b)
+            if v < check:
+                v = check
+            if v >= b:
+                return v
+            if a < v:
+                a = v
+        return v
+
+    def _minValue(self, board, d, a, b):
+        if d >= self.depth or board.is_game_over():
+            return -positionEvaluation(self.other_color, board)
+        legalMoves = list(board.legal_moves)
+        v = float('inf')
+        for move in legalMoves:
+            newBoard = copy(board)
+            newBoard.push_san(board.san(move))
+            check = self._maxValue(newBoard, d + 1, a, b)
+            if v > check:
+                v = check
+            if v <= a:
+                return v
+            if b > v:
+                b = v
         return v
 
 

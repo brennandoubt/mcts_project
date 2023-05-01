@@ -1,3 +1,5 @@
+import sys
+
 import chess
 from copy import deepcopy
 import player
@@ -23,7 +25,6 @@ class GameManager:
                 self.board.push_san(p_1_move)
             p_2_move = self.p2.get_move(self.board)
             if p_2_move is not None:
-                print("hi")
                 self.board.push_san(p_2_move)
             print(str(self.board) + '\n')
         return self.board.result()
@@ -36,24 +37,34 @@ class GameManager:
 
 
 def main():
-    p1 = player.MiniMaxPlayer('WHITE', 2)
-    #player_turn = False
-    p2 = player.RandomPlayer('BLACK')
-    board = chess.Board()
-    '''
-    # Me playing against the thing, useful for debugging
-    while not board.is_game_over():
-        print('\n' + str(board))
-        if not player_turn:
-            board.push_san(p1.get_move(board))
+    # Human player usage
+    if len(sys.argv) == 2:
+        board = chess.Board()
+        if sys.argv[1] == "WHITE":
+            p1 = player.MiniMaxPlayer('BLACK', 3)
             player_turn = True
-        else:
-            move = input("Enter move: ")
-            board.push_san(move)
+        elif sys.argv[1] == "BLACK":
+            p1 = player.AlphaBetaPlayer('WHITE', 3)
             player_turn = False
-    '''
-    gm = GameManager(p1, p2)
-    print(gm.play())
+        else:
+            exit(1)
+        # Me playing against the thing, useful for debugging
+        while not board.is_game_over():
+            print('\n' + str(board))
+            if not player_turn:
+                board.push_san(p1.get_move(board))
+                player_turn = True
+            else:
+                move = input("Enter move: ")
+                board.push_san(move)
+                player_turn = False
+
+    # Computer Player
+    else:
+        p1 = player.AlphaBetaPlayer('WHITE', 4)
+        p2 = player.MiniMaxPlayer('BLACK', 2)
+        gm = GameManager(p1, p2)
+        print(gm.play())
 
 
 main()
