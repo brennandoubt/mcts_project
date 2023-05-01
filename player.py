@@ -89,7 +89,7 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
     # This just makes life easier, instead of trying to go through the code and fix it.
     if position.is_checkmate():
         return -9999999
-    # Position of pieces is not taken into account for their strength
+    # Position of opponent's pieces is not taken into account for their strength
     positionTotalEval = 0
     pieces = position.piece_map()
     for j in pieces:
