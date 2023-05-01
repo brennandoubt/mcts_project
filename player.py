@@ -78,16 +78,17 @@ position_values = {
 def positionEvaluation(color, position, piece_values=piece_values, position_values=position_values):
     # Once you make the check-mating move then you have two possibilities:
 
-    # 1- You are the one check-mating so the position gets sent into min, and it just returns the -ve evaluation of it.
-    # so - (- inf) gives us inf, we want to make that move hence the inf.
+    # 1- You are the one check-mating so the position gets sent into min, and it just returns the -9999999
+    # evaluation of it. So - (- 9999999) gives us 9999999, we want to make that move, it wins the game hence the
+    # 9999999.
 
     # 2- You are the one getting check-mated so min sends it into max and max returns the +ve evaluation so
-    # - inf gives us - inf, we want to avoid it at all costs.
+    # -9999999 gives us - inf, we want to avoid it at all costs.
 
     # The question being why this quirk? Answer: The way I coded this up along with the python chess library.
     # This just makes life easier, instead of trying to go through the code and fix it.
-    if position.is_game_over():
-        return float('-inf')
+    if position.is_checkmate():
+        return -9999999
     # Position of pieces is not taken into account for their strength
     positionTotalEval = 0
     pieces = position.piece_map()
@@ -109,7 +110,7 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
                 positionTotalEval -= piece_values[piece_type]
 
             if piece_type.islower():
-                positionTotalEval += piece_values[piece_type] + position_values[piece_type.upper()][rank, file]
+                positionTotalEval += piece_values[piece_type] + positionArray[rank, file]
 
     return positionTotalEval
 
@@ -148,13 +149,14 @@ class MiniMaxPlayer(Player):
         v = float('-inf')
         finalMove = None
         legalMoves = list(board.legal_moves)
+        if len(legalMoves) == 1:
+            return board.san(legalMoves[0])
         for move in legalMoves:
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
             check = self._minValue(newBoard, 1)
             if v < check:
                 v = check
-                print(v)
                 finalMove = board.san(move)
         return finalMove
     def _maxValue(self, board, d):
@@ -194,7 +196,8 @@ class AlphaBetaPlayer(Player):
     def get_move(self, board):
         v, alpha, beta, finalMove = float('-inf'), float('-inf'), float('inf'), None
         legalMoves = list(board.legal_moves)
-
+        if len(legalMoves) == 1:
+            return board.san(legalMoves[0])
         for move in legalMoves:
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
@@ -229,12 +232,14 @@ class AlphaBetaPlayer(Player):
             return -positionEvaluation(self.other_color, board)
         legalMoves = list(board.legal_moves)
         v = float('inf')
+        min_move = None
         for move in legalMoves:
             newBoard = copy(board)
             newBoard.push_san(board.san(move))
             check = self._maxValue(newBoard, d + 1, a, b)
             if v > check:
                 v = check
+
             if v <= a:
                 return v
             if b > v:
