@@ -1,7 +1,6 @@
 import sys
 
 import chess
-from copy import deepcopy
 import player
 
 

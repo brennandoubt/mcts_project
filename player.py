@@ -1,3 +1,4 @@
+import math
 from copy import copy
 
 import chess
@@ -9,7 +10,10 @@ import numpy as np
 class Player(object):
     def __init__(self, color):
         self.color = color
-
+        if self.color == 'WHITE':
+            self.other_color = 'BLACK'
+        else:
+            self.other_color = 'WHITE'
 
     def __str__(self):
         return self.color
@@ -18,63 +22,66 @@ class Player(object):
 
 
 # ----- EVALUATION -----
-piece_values = {'P': 10, 'N': 30, 'B': 30, 'R': 50, 'Q': 90, 'K': 100, 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 100}
+piece_values = {'P': 10, 'N': 30, 'B': 30, 'R': 50, 'Q': 90, 'K': 100, 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90,
+                'k': 100}
 
 # These are black so flipped
 position_values = {
-        'P' : np.array([ [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
-                        [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
-                        [1.0,  1.0,  2.0,  3.0,  3.0,  2.0,  1.0,  1.0],
-                        [0.5,  0.5,  1.0,  2.5,  2.5,  1.0,  0.5,  0.5],
-                        [0.0,  0.0,  0.0,  2.0,  2.0,  0.0,  0.0,  0.0],
-                        [0.5, -0.5, -1.0,  0.0,  0.0, -1.0, -0.5,  0.5],
-                        [0.5,  1.0, 1.0,  -2.0, -2.0,  1.0,  1.0,  0.5],
-                        [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0] ]),
+    'P': np.array([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+                   [1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 1.0, 1.0],
+                   [0.5, 0.5, 1.0, 2.5, 2.5, 1.0, 0.5, 0.5],
+                   [0.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0, 0.0],
+                   [0.5, -0.5, -1.0, 0.0, 0.0, -1.0, -0.5, 0.5],
+                   [0.5, 1.0, 1.0, -2.0, -2.0, 1.0, 1.0, 0.5],
+                   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
 
-        'N' : np.array([[-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0],
-                       [-4.0, -2.0,  0.0,  0.0,  0.0,  0.0, -2.0, -4.0],
-                       [-3.0,  0.0,  1.0,  1.5,  1.5,  1.0,  0.0, -3.0],
-                       [-3.0,  0.5,  1.5,  2.0,  2.0,  1.5,  0.5, -3.0],
-                       [-3.0,  0.0,  1.5,  2.0,  2.0,  1.5,  0.0, -3.0],
-                       [-3.0,  0.5,  1.0,  1.5,  1.5,  1.0,  0.5, -3.0],
-                       [-4.0, -2.0,  0.0,  0.5,  0.5,  0.0, -2.0, -4.0],
-                       [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0] ]),
+    'N': np.array([[-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0],
+                   [-4.0, -2.0, 0.0, 0.0, 0.0, 0.0, -2.0, -4.0],
+                   [-3.0, 0.0, 1.0, 1.5, 1.5, 1.0, 0.0, -3.0],
+                   [-3.0, 0.5, 1.5, 2.0, 2.0, 1.5, 0.5, -3.0],
+                   [-3.0, 0.0, 1.5, 2.0, 2.0, 1.5, 0.0, -3.0],
+                   [-3.0, 0.5, 1.0, 1.5, 1.5, 1.0, 0.5, -3.0],
+                   [-4.0, -2.0, 0.0, 0.5, 0.5, 0.0, -2.0, -4.0],
+                   [-5.0, -4.0, -3.0, -3.0, -3.0, -3.0, -4.0, -5.0]]),
 
-        'B' : np.array([[-2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0],
-                       [-1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -1.0],
-                       [-1.0,  0.0,  0.5,  1.0,  1.0,  0.5,  0.0, -1.0],
-                       [-1.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5, -1.0],
-                       [-1.0,  0.0,  1.0,  1.0,  1.0,  1.0,  0.0, -1.0],
-                       [-1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0, -1.0],
-                       [-1.0,  0.5,  0.0,  0.0,  0.0,  0.0,  0.5, -1.0],
-                       [-2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0] ]),
+    'B': np.array([[-2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0],
+                   [-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+                   [-1.0, 0.0, 0.5, 1.0, 1.0, 0.5, 0.0, -1.0],
+                   [-1.0, 0.5, 0.5, 1.0, 1.0, 0.5, 0.5, -1.0],
+                   [-1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, -1.0],
+                   [-1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0],
+                   [-1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5, -1.0],
+                   [-2.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -2.0]]),
 
-        'R' : np.array([[ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0],
-                       [ 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,  0.5],
-                       [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
-                       [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
-                       [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
-                       [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
-                       [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
-                       [ 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0,  0.0]]),
+    'R': np.array([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5],
+                   [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
+                   [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
+                   [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
+                   [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
+                   [-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.5],
+                   [0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0]]),
 
-        'Q' : np.array([[-2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0],
-                       [-1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, -1.0],
-                       [-1.0,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -1.0],
-                       [-0.5,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -0.5],
-                       [-0.5,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0, -0.5],
-                       [-1.0,  0.5,  0.5,  0.5,  0.5,  0.5,  0.0, -1.0],
-                       [-1.0,  0.0,  0.5,  0.0,  0.0,  0.0,  0.0, -1.0],
-                       [-2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0]]),
+    'Q': np.array([[-2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0],
+                   [-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+                   [-1.0, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0, -1.0],
+                   [-0.5, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0, -0.5],
+                   [-0.5, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0, -0.5],
+                   [-1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.0, -1.0],
+                   [-1.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, -1.0],
+                   [-2.0, -1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -2.0]]),
 
-        'K' : np.array([[ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
-                       [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
-                       [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
-                       [ -3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
-                       [ -2.0, -3.0, -3.0, -4.0, -4.0, -3.0, -3.0, -2.0],
-                       [ -1.0, -2.0, -2.0, -2.0, -2.0, -2.0, -2.0, -1.0],
-                       [  2.0,  2.0,  0.0,  0.0,  0.0,  0.0,  2.0,  2.0 ],
-                       [  2.0,  3.0,  1.0,  0.0,  0.0,  1.0,  3.0,  2.0 ]])}
+    'K': np.array([[-3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+                   [-3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+                   [-3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+                   [-3.0, -4.0, -4.0, -5.0, -5.0, -4.0, -4.0, -3.0],
+                   [-2.0, -3.0, -3.0, -4.0, -4.0, -3.0, -3.0, -2.0],
+                   [-1.0, -2.0, -2.0, -2.0, -2.0, -2.0, -2.0, -1.0],
+                   [2.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0],
+                   [2.0, 3.0, 1.0, 0.0, 0.0, 1.0, 3.0, 2.0]])}
+
+
 def positionEvaluation(color, position, piece_values=piece_values, position_values=position_values):
     # Once you make the check-mating move then you have two possibilities:
 
@@ -89,6 +96,8 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
     # This just makes life easier, instead of trying to go through the code and fix it.
     if position.is_checkmate():
         return -9999999
+    if position.is_stalemate():
+        return 0
     # Position of opponent's pieces is not taken into account for their strength
     positionTotalEval = 0
     pieces = position.piece_map()
@@ -113,6 +122,7 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
                 positionTotalEval += piece_values[piece_type] + positionArray[rank, file]
 
     return positionTotalEval
+
 
 class RandomPlayer(Player):
     def __init__(self, color):
@@ -139,11 +149,6 @@ class MiniMaxPlayer(Player):
     def __init__(self, color, depth):
         super(MiniMaxPlayer, self).__init__(color)
         self.depth = depth
-        if self.color == 'WHITE':
-            self.other_color = 'BLACK'
-        else:
-            self.other_color = 'WHITE'
-
 
     def get_move(self, board):
         v = float('-inf')
@@ -159,6 +164,7 @@ class MiniMaxPlayer(Player):
                 v = check
                 finalMove = board.san(move)
         return finalMove
+
     def _maxValue(self, board, d):
         legalMoves = list(board.legal_moves)
         if d >= self.depth or board.is_game_over():
@@ -171,6 +177,7 @@ class MiniMaxPlayer(Player):
             if v < check:
                 v = check
         return v
+
     def _minValue(self, board, d):
         legalMoves = list(board.legal_moves)
         if d >= self.depth or board.is_game_over():
@@ -189,10 +196,7 @@ class AlphaBetaPlayer(Player):
     def __init__(self, color, depth):
         super(AlphaBetaPlayer, self).__init__(color)
         self.depth = depth
-        if self.color == 'WHITE':
-            self.other_color = 'BLACK'
-        else:
-            self.other_color = 'WHITE'
+
     def get_move(self, board):
         v, alpha, beta, finalMove = float('-inf'), float('-inf'), float('inf'), None
         legalMoves = list(board.legal_moves)
@@ -246,3 +250,66 @@ class AlphaBetaPlayer(Player):
         return v
 
 
+class MCTSNode:
+    def __init__(self, state=chess.Board(), action=None, children=None, parent=None, x=0, n=0, n_i=0):
+        if children is None:
+            children = []
+        self.state = state
+        self.action = action
+        self.children = children
+        self.parent = parent
+
+        # for UCB calculation
+        self.x = x  # Average payout ---> Times the color of the node won / n_i
+        self.n = n  # How many times the parent node has been simulated
+        self.n_i = n_i  # How many times has the child node been simulated
+
+    def ucb(self):
+        return self.x + ((math.sqrt(2 * math.log(self.n, 2))) / self.n_i)
+
+    def __str__(self):
+        string = "-----PRINTING MCTS NODE-----\n BOARD: \n" + str(self.state) +'\n' + " PARENT: \n" + "     " + str(self.parent)
+        if self.action is not None:
+            string += '\n' + "ACTION: " + self.parent.state.san(self.action)
+        return string
+
+
+
+
+class MCTSPlayer(Player):
+    def __init__(self, color, rounds, start_board):
+        super(MCTSPlayer, self).__init__(color)
+        self.rounds = rounds
+        self.root = MCTSNode(start_board)
+
+    def selection(self, node):
+        while len(node.children) > 0:
+            candidate = node
+            max_ucb = float('-inf')
+            for child in node.children:
+                if child.ucb() > max_ucb:
+                    max_ucb = child.ucb()
+                    candidate = child
+            node = candidate
+        return node
+
+    def expansion(self, node):
+        actions = list(node.state.legal_moves)
+        for move in actions:
+            newBoard = copy(node.state)
+            newBoard.push_san(newBoard.san(move))
+            child = MCTSNode(newBoard, move, [], node)
+            node.children.append(child)
+        return node.children[random.randint(0, len(node.children))]
+
+    def simulation(self, node):
+        pass
+
+    def update(self, node):
+        pass
+
+    def get_move(self, board):
+        #for i in range(self.rounds):
+        node = self.selection(self.root)
+        child = self.expansion(node)
+        print(child)
