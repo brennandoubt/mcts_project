@@ -38,6 +38,8 @@ class GameManager:
 
 def main():
     # Human player usage
+    # python3 game_manager.py "WHITE" to play as white
+    # python3 game_manager.py "BLACK" to play as black
     if len(sys.argv) == 2:
         board = chess.Board()
         if sys.argv[1] == "WHITE":
