@@ -1,6 +1,5 @@
 import sys
 from copy import copy
-
 import player
 from player import MCTSNode
 import chess
@@ -17,31 +16,33 @@ def main():
             player_turn = True
         elif sys.argv[1] == "BLACK":
             p1 = player.AlphaBetaPlayer('WHITE', 3)
-            node = MCTSNode(board)
+            node = MCTSNode(copy(board))
             player_turn = False
         else:
             exit(1)
         # Me playing against the thing, useful for debugging
         while not board.is_game_over():
-            print('\n' + str(board))
+            #print('\n' + str(board))
             if not player_turn:
                 player_turn = True
                 for _ in range(50):
                     p1.do_rollout(node)
-                board = p1.choose(node).board
-
+                board = copy(p1.choose(node).board)
+                node = MCTSNode(copy(board))
 
             else:
+                print('\n' + str(board))
                 move = input("Enter move: ")
+
                 board.push_san(move)
-                node.make_move(move)
-                print(node.board)
+                node = node.make_move(move)
+                #print("HELLO???" , str(node.board))
                 player_turn = False
 
     # Computer Player
     else:
-        p1 = player.AlphaBetaPlayer('WHITE', 4)
-        p2 = player.AlphaBetaPlayer('BLACK', 4)
+        p1 = player.MCTSPlayer('WHITE')
+        p2 = player.AlphaBetaPlayer('BLACK', 1)
         gm = GameManager(p1, p2)
         print(gm.play())
 
