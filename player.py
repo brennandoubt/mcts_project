@@ -1,6 +1,5 @@
 import math
 from copy import copy
-
 import chess
 import chess.engine
 import random
@@ -18,7 +17,8 @@ class Player(object):
     def __str__(self):
         return self.color
 
-    def get_move(self, board): pass
+    def get_move(self, board):
+        pass
 
 
 # ----- EVALUATION -----
@@ -251,7 +251,7 @@ class AlphaBetaPlayer(Player):
 
 
 class MCTSNode:
-    def __init__(self, state=chess.Board(), action=None, children=None, parent=None, x=0, n=0, n_i=0):
+    def __init__(self, state=chess.Board(), action=None, children=None, parent=None, x=0, n=0, n_i=1):
         if children is None:
             children = []
         self.state = state
@@ -262,18 +262,17 @@ class MCTSNode:
         # for UCB calculation
         self.x = x  # Average payout ---> Times the color of the node won / n_i
         self.n = n  # How many times the parent node has been simulated
-        self.n_i = n_i  # How many times has the child node been simulated
+        self.n_i = n_i  # How many times has the node been simulated
 
     def ucb(self):
         return self.x + ((math.sqrt(2 * math.log(self.n, 2))) / self.n_i)
 
     def __str__(self):
-        string = "-----PRINTING MCTS NODE-----\n BOARD: \n" + str(self.state) +'\n' + " PARENT: \n" + "     " + str(self.parent)
+        string = "-----PRINTING MCTS NODE-----\n BOARD: \n" + str(self.state) + '\n' + " PARENT: \n" + "     " + str(
+            self.parent)
         if self.action is not None:
             string += '\n' + "ACTION: " + self.parent.state.san(self.action)
         return string
-
-
 
 
 class MCTSPlayer(Player):
@@ -300,16 +299,51 @@ class MCTSPlayer(Player):
             newBoard.push_san(newBoard.san(move))
             child = MCTSNode(newBoard, move, [], node)
             node.children.append(child)
-        return node.children[random.randint(0, len(node.children))]
+        if len(node.children) > 0:
+            return node.children[random.randint(0, len(node.children) - 1)]
+        else:
+            node = self.selection()
 
     def simulation(self, node):
-        pass
+        board = node.state
+        while not board.is_game_over():
+            legal_moves = list(board.legal_moves)
+            if len(legal_moves) > 0:
+                board.push_san(board.san(legal_moves[random.randint(0, len(legal_moves) - 1)]))
+        if (board.result() == "1-0" and self.color == 'WHITE') or (board.result() == "0-1" and self.color == 'BLACK'):
+            return 1
 
-    def update(self, node):
-        pass
+        if (board.result() == "1-0" and self.color == 'BLACK') or (board.result() == "0-1" and self.color == 'WHITE'):
+            return 0
+
+        else:
+            return 0.5
+
+    def update(self, node, val):
+        while node is not None:
+            node.x += val
+            print("X: ", str(node.x))
+            node.n_i += 1
+            for child in node.children:
+                child.n += 1
+            node = node.parent
 
     def get_move(self, board):
-        #for i in range(self.rounds):
-        node = self.selection(self.root)
-        child = self.expansion(node)
-        print(child)
+        self.root = MCTSNode(board)
+        for i in range(self.rounds):
+            print("N before " + str(self.root.n_i))
+            node = self.selection(self.root)
+            child = self.expansion(node)
+            simulation = self.simulation(child)  # 1 if we won, -1 won if we lost, 0 if we drew
+            self.update(child, simulation)
+
+        max_payout = float('-inf')
+        action = None
+        for child in self.root.children:
+            payout = child.x / child.n_i
+            if payout > max_payout:
+                max_payout = payout
+                action = board.san(child.action)
+        print(action)
+        return action
+
