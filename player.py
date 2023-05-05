@@ -1,9 +1,8 @@
-import hashlib
 import math
-from collections import defaultdict
 from copy import copy
 import chess
 import chess.engine
+from game_manager import GameManager
 import random
 import numpy as np
 
@@ -99,6 +98,8 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
     if position.is_checkmate():
         return -9999999
     if position.is_stalemate():
+        return 0
+    if position.can_claim_threefold_repetition():
         return 0
     # Position of opponent's pieces is not taken into account for their strength
     positionTotalEval = 0
@@ -218,6 +219,8 @@ class AlphaBetaPlayer(Player):
 
     def _maxValue(self, board, d, a, b):
         legalMoves = list(board.legal_moves)
+        if board.is_repetition():
+            return float('-inf')
         if d >= self.depth or board.is_game_over():
             return positionEvaluation(self.color, board)
         v = float('-inf')
@@ -234,6 +237,8 @@ class AlphaBetaPlayer(Player):
         return v
 
     def _minValue(self, board, d, a, b):
+        if board.is_repetition():
+            return float('inf')
         if d >= self.depth or board.is_game_over():
             return -positionEvaluation(self.other_color, board)
         legalMoves = list(board.legal_moves)
@@ -253,149 +258,104 @@ class AlphaBetaPlayer(Player):
 
 
 class MCTSNode:
-    def __init__(self, board):
-        self.board = board
-    def find_children(self):
-        if self.is_terminal():
-            return set()
-        return {
-            self.make_move(self.board.san(m)) for m in self.board.legal_moves
-        }
+    def __init__(self, state=chess.Board(), action=None, children=None, parent=None, x=0, n=0, n_i=1):
+        if children is None:
+            children = []
+        self.state = copy(state)
+        self.action = action
+        self.children = children
+        self.parent = parent
 
-    def find_random_child(self):
-        if self.is_terminal():
-            return None
-        moves = list(self.board.legal_moves)
-        val = float('-inf')
-        act = None
-        if self.board.turn == 1:
-            color = 'WHITE'
+        # for UCB calculation
+        self.x = x  # Average payout ---> Times the color of the node won / n_i
+        self.n = n  # How many times the parent node has been simulated
+        self.n_i = n_i  # How many times has the node been simulated
+
+    def ucb(self):
+        return self.x + ((math.sqrt(4 * math.log(self.n, 2))) / self.n_i)
+
+    def __str__(self):
+        string = "-----PRINTING MCTS NODE-----\n BOARD: \n" + str(self.state) + '\n' + " PARENT: \n" + "     " + str(
+            self.parent)
+        if self.action is not None:
+            string += '\n' + "ACTION: " + self.parent.state.san(self.action)
+        return string
+
+
+class MCTSPlayer(Player):
+    def __init__(self, color, rounds, start_board):
+        super(MCTSPlayer, self).__init__(color)
+        self.rounds = rounds
+        self.root = MCTSNode(start_board)
+
+    def selection(self, node):
+        while len(node.children) > 0:
+            candidate = node
+            max_ucb = float('-inf')
+            for child in node.children:
+                if child.ucb() > max_ucb:
+                    max_ucb = child.ucb()
+                    candidate = child
+            node = candidate
+        return node
+
+    def expansion(self, node):
+        actions = list(node.state.legal_moves)
+        for move in actions:
+            newBoard = copy(node.state)
+            newBoard.push_san(newBoard.san(move))
+            child = MCTSNode(newBoard, move, [], node)
+            node.children.append(child)
+        if len(node.children) > 0:
+            return node.children[random.randint(0, len(node.children) - 1)]
         else:
-            color = 'BLACK'
-        for move in moves:
-            copyBoard = copy(self.board)
-            copyBoard.push(move)
-            eval = positionEvaluation(color, copyBoard)
-            if eval >= val:
-                val = eval
-                act = move
-        return self.make_move(self.board.san(act))
+            return node
 
-    def player_win(self, turn):
-        if self.board.result() == '1-0' and turn:
-            return True
-        if self.board.result() == '0-1' and not turn:
-            return True
-        return False
+    def simulation(self, node):
+        board = node.state
+        newBoard = copy(board)
+        #print("TURN", newBoard.turn)
+        p1 = AlphaBetaPlayer('WHITE', 2)
+        p2 = AlphaBetaPlayer('BLACK', 2)
+        gm = GameManager(p1, p2, newBoard)
+        #print(gm.get_turn())
+        result = gm.heavy_playout()
+        if (result == "1-0" and self.color == 'WHITE') or (result == "0-1" and self.color == 'BLACK'):
+            return 1
 
-    def reward(self):
-        if self.board.result() == '1/2-1/2':
+        if (result == "1-0" and self.color == 'BLACK') or (result == "0-1" and self.color == 'WHITE'):
+            #print("RETURNING 0")
+            return 0
+
+        else:
             return 0.5
-        if self.player_win(not self.board.turn):
-            return 0.0
 
-    def make_move(self, move):
-        child = self.board.copy()
-        child.push_san(move)
-        return MCTSNode(child)
-
-
-    def is_terminal(self):
-        return self.board.is_game_over()
-
-    def __hash__(self):
-        return int(
-            hashlib.md5(
-                self.board.fen().encode('utf-8')
-            ).hexdigest()[:8],
-            16
-        )
-
-    def __eq__(self, other):
-        return self.__hash__() == other.__hash__()
-
-    def __repr__(self):
-        return '\n' + str(self.board)
-
-
-class MCTSPlayer:
-    def __init__(self, exploration_weight=1.0):
-        self.Q = defaultdict(int)  # total reward of each node
-        self.N = defaultdict(int)  # total visit count for each node
-        self.children = dict()  # children of each node
-        self.exploration_weight = exploration_weight
+    def update(self, node, val):
+        while node is not None:
+            node.x += val
+            #print("X: ", str(node.x))
+            node.n_i += 1
+            for child in node.children:
+                child.n += 1
+            node = node.parent
 
     def get_move(self, board):
-        node = MCTSNode(copy(board))
-        for i in range(50):
-            self.do_rollout(node)
-        return copy(self.choose(node).board)
-    def choose(self, node):
-        "Choose the best successor of node. (Choose a move in the game)"
-        if node.is_terminal():
-            raise RuntimeError(f"choose called on terminal node {node}")
+        self.root = MCTSNode(board)
+        for i in range(self.rounds):
+            #print("N before " + str(self.root.n_i))
+            node = self.selection(self.root)
+            child = self.expansion(node)
+            simulation = self.simulation(child)  # 1 if we won, -1 won if we lost, 0 if we drew
+            self.update(child, simulation)
 
-        if node not in self.children:
-            return node.find_random_child()
+        max_payout = float('-inf')
+        action = None
+        for child in self.root.children:
+            payout = child.x / child.n_i
+            if payout > max_payout:
+                max_payout = payout
+                action = board.san(child.action)
+        return action
 
-        def score(n):
-            if self.N[n] == 0:
-                return float("-inf")  # avoid unseen moves
-            return self.Q[n] / self.N[n]  # average reward
 
-        return max(self.children[node], key=score)
-
-    def do_rollout(self, node):
-        "Make the tree one layer better. (Train for one iteration.)"
-        path = self._select(node)
-        leaf = path[-1]
-        self._expand(leaf)
-        reward = self._simulate(leaf)
-        self._backpropagate(path, reward)
-
-    def _select(self, node):
-        "Find an unexplored descendent of `node`"
-        path = []
-        while True:
-            path.append(node)
-            if node not in self.children or not self.children[node]:
-                # node is either unexplored or terminal
-                return path
-            unexplored = self.children[node] - self.children.keys()
-            if unexplored:
-                n = unexplored.pop()
-                path.append(n)
-                return path
-            node = self._uct_select(node)  # descend a layer deeper
-
-    def _expand(self, node):
-        "Update the `children` dict with the children of `node`"
-        if node in self.children:
-            return  # already expanded
-        self.children[node] = node.find_children()
-
-    def _simulate(self, node):
-        "Returns the reward for a random simulation (to completion) of `node`"
-        invert_reward = True
-        while True:
-            if node.is_terminal():
-                reward = node.reward()
-                return 1 - reward if invert_reward else reward
-            node = node.find_random_child()
-            invert_reward = not invert_reward
-
-    def _backpropagate(self, path, reward):
-        "Send the reward back up to the ancestors of the leaf"
-        for node in reversed(path):
-            self.N[node] += 1
-            self.Q[node] += reward
-            reward = 1 - reward  # 1 for me is 0 for my enemy, and vice versa
-
-    def _uct_select(self, node):
-        log_N_vertex = math.log(self.N[node])
-
-        def uct(n):
-            return self.Q[n] / self.N[n]  + 1.0 * math.sqrt(log_N_vertex / self.N[n])
-
-        return max(self.children[node], key=uct)
 

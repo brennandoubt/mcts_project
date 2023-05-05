@@ -14,27 +14,37 @@ class GameManager:
     def print_board(self):
         print(self.board)
 
-    def light_playout(self):
-        if self.get_turn() == "WHITE":
-            return self.play()
-        else:
-            while not self.board.is_game_over():
-                p_2_move = self.p2.get_move(self.board)
-                if p_2_move is not None:
-                    self.board.push_san(p_2_move)
+    def heavy_playout(self):
+        while not self.board.is_game_over():
+            # if self.board.can_claim_fifty_moves():
+            #   return "1/2-1/2"
+            if self.board.turn:
                 p_1_move = self.p1.get_move(self.board)
                 if p_1_move is not None:
                     self.board.push_san(p_1_move)
-            return self.board.result()
+            else:
+                p_2_move = self.p2.get_move(self.board)
+                if p_2_move is not None:
+                    self.board.push_san(p_2_move)
+#            print(str(self.board) + '\n')
+            # print(str(self.board) + '\n')
+        return self.board.result()
+
 
     def play(self):
         while not self.board.is_game_over():
-            self.board = self.p1.get_move(copy(self.board))
-            p_2_move = self.p2.get_move(self.board)
-            if p_2_move is not None:
-                self.board.push_san(p_2_move)
+            #if self.board.can_claim_fifty_moves():
+             #   return "1/2-1/2"
+            if self.board.turn:
+                p_1_move = self.p1.get_move(self.board)
+                if p_1_move is not None:
+                    self.board.push_san(p_1_move)
+            else:
+                p_2_move = self.p2.get_move(self.board)
+                if p_2_move is not None:
+                    self.board.push_san(p_2_move)
             print(str(self.board) + '\n')
-        print(str(self.board) + '\n')
+            # print(str(self.board) + '\n')
         return self.board.result()
 
     def get_turn(self):
