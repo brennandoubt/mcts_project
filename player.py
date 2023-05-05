@@ -2,6 +2,7 @@ import math
 from copy import copy
 import chess
 import chess.engine
+from game_manager import GameManager
 import random
 import numpy as np
 
@@ -97,6 +98,8 @@ def positionEvaluation(color, position, piece_values=piece_values, position_valu
     if position.is_checkmate():
         return -9999999
     if position.is_stalemate():
+        return 0
+    if position.can_claim_threefold_repetition():
         return 0
     # Position of opponent's pieces is not taken into account for their strength
     positionTotalEval = 0
@@ -216,6 +219,8 @@ class AlphaBetaPlayer(Player):
 
     def _maxValue(self, board, d, a, b):
         legalMoves = list(board.legal_moves)
+        if board.is_repetition():
+            return float('-inf')
         if d >= self.depth or board.is_game_over():
             return positionEvaluation(self.color, board)
         v = float('-inf')
@@ -232,6 +237,8 @@ class AlphaBetaPlayer(Player):
         return v
 
     def _minValue(self, board, d, a, b):
+        if board.is_repetition():
+            return float('inf')
         if d >= self.depth or board.is_game_over():
             return -positionEvaluation(self.other_color, board)
         legalMoves = list(board.legal_moves)
@@ -254,7 +261,7 @@ class MCTSNode:
     def __init__(self, state=chess.Board(), action=None, children=None, parent=None, x=0, n=0, n_i=1):
         if children is None:
             children = []
-        self.state = state
+        self.state = copy(state)
         self.action = action
         self.children = children
         self.parent = parent
@@ -265,7 +272,7 @@ class MCTSNode:
         self.n_i = n_i  # How many times has the node been simulated
 
     def ucb(self):
-        return self.x + ((math.sqrt(2 * math.log(self.n, 2))) / self.n_i)
+        return self.x + ((math.sqrt(4 * math.log(self.n, 2))) / self.n_i)
 
     def __str__(self):
         string = "-----PRINTING MCTS NODE-----\n BOARD: \n" + str(self.state) + '\n' + " PARENT: \n" + "     " + str(
@@ -302,18 +309,22 @@ class MCTSPlayer(Player):
         if len(node.children) > 0:
             return node.children[random.randint(0, len(node.children) - 1)]
         else:
-            node = self.selection()
+            return node
 
     def simulation(self, node):
         board = node.state
-        while not board.is_game_over():
-            legal_moves = list(board.legal_moves)
-            if len(legal_moves) > 0:
-                board.push_san(board.san(legal_moves[random.randint(0, len(legal_moves) - 1)]))
-        if (board.result() == "1-0" and self.color == 'WHITE') or (board.result() == "0-1" and self.color == 'BLACK'):
+        newBoard = copy(board)
+        #print("TURN", newBoard.turn)
+        p1 = AlphaBetaPlayer('WHITE', 2)
+        p2 = AlphaBetaPlayer('BLACK', 2)
+        gm = GameManager(p1, p2, newBoard)
+        #print(gm.get_turn())
+        result = gm.heavy_playout()
+        if (result == "1-0" and self.color == 'WHITE') or (result == "0-1" and self.color == 'BLACK'):
             return 1
 
-        if (board.result() == "1-0" and self.color == 'BLACK') or (board.result() == "0-1" and self.color == 'WHITE'):
+        if (result == "1-0" and self.color == 'BLACK') or (result == "0-1" and self.color == 'WHITE'):
+            #print("RETURNING 0")
             return 0
 
         else:
@@ -322,7 +333,7 @@ class MCTSPlayer(Player):
     def update(self, node, val):
         while node is not None:
             node.x += val
-            print("X: ", str(node.x))
+            #print("X: ", str(node.x))
             node.n_i += 1
             for child in node.children:
                 child.n += 1
@@ -331,7 +342,7 @@ class MCTSPlayer(Player):
     def get_move(self, board):
         self.root = MCTSNode(board)
         for i in range(self.rounds):
-            print("N before " + str(self.root.n_i))
+            #print("N before " + str(self.root.n_i))
             node = self.selection(self.root)
             child = self.expansion(node)
             simulation = self.simulation(child)  # 1 if we won, -1 won if we lost, 0 if we drew
@@ -344,6 +355,7 @@ class MCTSPlayer(Player):
             if payout > max_payout:
                 max_payout = payout
                 action = board.san(child.action)
-        print(action)
         return action
+
+
 
